@@ -1,5 +1,5 @@
 use std::io::{self, Read, Seek, SeekFrom};
-use reqwest::header::{HeaderValue, RANGE};
+use reqwest::header::RANGE;
 
 pub struct HttpRangeReader {
     url: String,
@@ -8,8 +8,6 @@ pub struct HttpRangeReader {
     position: u64,
     offset: u64,
 }
-
-
 
 impl HttpRangeReader {
     pub fn new(url: &str) -> Result<Self, Box<dyn std::error::Error>> {

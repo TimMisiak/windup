@@ -1,5 +1,5 @@
 use tokio::*;
-use windows::{Win32::{System::{Threading::{IsWow64Process2, GetCurrentProcess}, SystemInformation::{IMAGE_FILE_MACHINE, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_ARM64}}, Security::WinTrust::{WINTRUST_DATA, WTD_UI_NONE, WTD_REVOKE_NONE, WTD_CHOICE_CATALOG, WINTRUST_FILE_INFO, WINTRUST_ACTION_GENERIC_VERIFY_V2, WTD_CHOICE_FILE, WTD_STATEACTION_VERIFY, WinVerifyTrust}, Foundation::ERROR_SUCCESS}, core::{PCWSTR, HSTRING}};
+use windows::{Win32::{System::{Threading::{IsWow64Process2, GetCurrentProcess}, SystemInformation::{IMAGE_FILE_MACHINE, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_ARM64}}, Security::WinTrust::{WINTRUST_DATA, WTD_UI_NONE, WTD_REVOKE_NONE, WINTRUST_FILE_INFO, WINTRUST_ACTION_GENERIC_VERIFY_V2, WTD_CHOICE_FILE, WTD_STATEACTION_VERIFY, WinVerifyTrust}, Foundation::ERROR_SUCCESS}, core::{PCWSTR, HSTRING}};
 use core::panic;
 use std::{error::Error, io::{Read, Seek, Write}, path::Path, fs::File};
 use reqwest::blocking::get;
