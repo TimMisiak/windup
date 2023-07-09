@@ -257,7 +257,9 @@ pub fn check_for_new_version(install_dir: &Path, current_version: Option<String>
                 let elapsed = start.elapsed();
                 println!("Time to download: {:?}", elapsed);
 
-                println!("Verifying certificates");
+                drop(dest_file);
+
+                println!("Verifying certificates on {}", dest_path.as_path().to_str().unwrap());
                 let start = std::time::Instant::now();
                 if !verify_archive(dest_path.as_path()) {
                     return None;

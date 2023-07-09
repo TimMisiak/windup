@@ -1,5 +1,8 @@
-use windows::{Win32::System::{Threading::{PROCESS_CREATION_FLAGS, CreateProcessW, STARTUPINFOEXW, PROCESS_INFORMATION, WaitForSingleObject, INFINITE}, Environment::GetCommandLineW}, core::PWSTR};
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use windows::{Win32::System::{Threading::{PROCESS_CREATION_FLAGS, CreateProcessW, STARTUPINFOEXW, PROCESS_INFORMATION, WaitForSingleObject, INFINITE}, Environment::GetCommandLineW, Console::{AllocConsole, FreeConsole}}, core::PWSTR};
 use std::{path::Path, ffi::OsString, os::windows::{ffi::OsStrExt, prelude::OsStringExt}};
+use std::io::Read;
 
 mod range_reader;
 mod install;
@@ -103,17 +106,25 @@ fn main() {
             run_dbgx_shell(&version_path);
         });
 
+        
         // Check for new versions in the background
         check_for_new_version(&install_dir, current_version);
 
         thread.join().unwrap();
     } else {
+        unsafe { AllocConsole() };
         let new_version = check_for_new_version(&install_dir, current_version);
-
+        
         if let Some(new_version) = new_version {
             let version_install_dir = install_dir.join(&new_version);
             // Now that we're installed, run DbgX.Shell.exe with the given parameters
             run_dbgx_shell(&version_install_dir);    
+        } else {
+            println!("Install failed. Press enter to close this window.");
+            let mut stdin = std::io::stdin();
+            let _ = stdin.read(&mut [0u8]).unwrap();
         }
+
+        unsafe { FreeConsole() };
     }
 }
