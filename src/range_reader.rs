@@ -56,6 +56,13 @@ impl HttpRangeReader {
             offset: self.offset + offset
         }
     }
+
+    pub fn get_stream(&mut self) -> io::Result<reqwest::blocking::Response> {
+        let response = self.client.get(&self.url)
+                                  .header(RANGE, format!("bytes={}-{}", self.offset, self.offset + self.content_length - 1))
+                                  .send().map_err(map_reqwest_error_to_io_error)?;
+        Ok(response)
+    }
 }
 
 pub struct HttpRangeCursor {
@@ -71,12 +78,19 @@ fn map_reqwest_error_to_io_error(req_err: reqwest::Error) -> io::Error {
 
 impl Read for HttpRangeReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let data_left = self.content_length - self.position;
         let req_len = buf.len() as u64;
+        let req_len = if req_len > data_left { data_left } else { req_len };
+        if req_len == 0 {
+            return Ok(0);
+        }
+
         let position = self.position + self.offset;
         let mut response = self.client.get(&self.url)
-                                  .header(RANGE, format!("bytes={}-{}", position, position + req_len))
+                                  .header(RANGE, format!("bytes={}-{}", position, position + req_len - 1))
                                   .send().map_err(map_reqwest_error_to_io_error)?;
-        let bytes_read = response.read(buf)?;
+        let req_len = req_len as usize;
+        let bytes_read = response.read(&mut buf[0..req_len])?;
         self.position += bytes_read as u64;
         Ok(bytes_read)
     }
@@ -86,7 +100,7 @@ impl Read for HttpRangeCursor {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let req_len = buf.len() as u64;
         let mut response = self.client.get(&self.url)
-                                  .header(RANGE, format!("bytes={}-{}", self.position, self.position + req_len))
+                                  .header(RANGE, format!("bytes={}-{}", self.position, self.position + req_len - 1))
                                   .send().map_err(map_reqwest_error_to_io_error)?;
         let bytes_read = response.read(buf)?;
         self.position += bytes_read as u64;

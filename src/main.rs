@@ -1,9 +1,10 @@
 use tokio::*;
+use windows::Win32::System::{Threading::{IsWow64Process2, GetCurrentProcess}, SystemInformation::{IMAGE_FILE_MACHINE, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_ARM64}};
 use core::panic;
-use std::{error::Error, io::{Read, Seek}, path::Path, fs::File};
+use std::{error::Error, io::{Read, Seek}, path::Path, fs::File, ptr::copy};
 use reqwest::blocking::get;
 use roxmltree::Document;
-use rc_zip::{*, reader::{ArchiveReaderResult, ArchiveReader, sync::EntryReader}};
+use rc_zip::{*, reader::{ArchiveReaderResult, ArchiveReader, sync::{EntryReader, SyncArchive}}};
 use rc_zip::{prelude::*, EntryContents};
 
 mod range_reader;
@@ -97,8 +98,7 @@ fn read_file_from_entry<'a>(entry: &'a StoredEntry, http_source: &'a HttpRangeRe
     })
 }
 
-fn extract_archive(archive: Archive, stream: &mut HttpRangeReader, dest_dir: &str) {
-    let root = Path::new(dest_dir);
+fn extract_archive(archive: SyncArchive<'_, File>, dest_dir: &Path) {
     println!("Downloading and extracting archive");
     for entry in archive.entries() {
         // TODO: Use CRCs to skip files already downloaded from previous versions?
@@ -107,8 +107,8 @@ fn extract_archive(archive: Archive, stream: &mut HttpRangeReader, dest_dir: &st
             panic!("The '..' sequence was found");
         }
         println!("{} - {}", name, (*entry).crc32);
-        let mut file_reader = read_file_from_entry(entry, stream);
-        let dest_path = root.join(name);
+        let mut file_reader = entry.reader();
+        let dest_path = dest_dir.join(name);
         if !dest_path.as_path().exists() {
             if let Some(parent) = dest_path.parent() {
                 std::fs::create_dir_all(parent).unwrap();
@@ -121,7 +121,22 @@ fn extract_archive(archive: Archive, stream: &mut HttpRangeReader, dest_dir: &st
 
 fn main() {
     let (bundle_uri, version) = get_bundle_uri().unwrap();
+    let install_dir = "C:\\Debuggers";    
 
+    let start_everything = std::time::Instant::now();
+
+    let mut process_machine: IMAGE_FILE_MACHINE = IMAGE_FILE_MACHINE::default();
+    let mut native_machine: IMAGE_FILE_MACHINE = IMAGE_FILE_MACHINE::default();
+    unsafe { IsWow64Process2(GetCurrentProcess(), &mut process_machine, Some(&mut native_machine)) };
+
+    let install_arch = match native_machine {
+        IMAGE_FILE_MACHINE_AMD64 => "x64",
+        IMAGE_FILE_MACHINE_I386 => "x86",
+        IMAGE_FILE_MACHINE_ARM64 => "arm64",
+        _ => panic!("Unrecognized machine architecture"),
+    };
+
+    let version_install_dir = Path::new(install_dir).join(&version);
     // TODO: Check if version is different from existing installed version
     // TODO: Allow configuration of installation directory
     println!("{} - {}", version, bundle_uri);
@@ -141,32 +156,53 @@ fn main() {
             let mut manifest_reader = read_file_from_entry(entry, &http_source);
             let mut manifest_buffer = String::new();
             manifest_reader.read_to_string(&mut manifest_buffer).unwrap();
-            msix_info = Some(get_filename_for_architecture_from_bundle_manifest(&manifest_buffer, "x64").unwrap());
+            msix_info = Some(get_filename_for_architecture_from_bundle_manifest(&manifest_buffer, install_arch).unwrap());
             break;
         }
     }
 
+    // Find the entry for the msix file and then extract it to the installation directory.
     let msix_info = msix_info.unwrap();
-
     for entry in archive.entries() {
         if entry.name().eq(&msix_info.entry_name) {
+            // TODO: Check name for '..'
             println!("Found package for architecture: {}", msix_info.entry_name);
             if entry.entry.method == Method::Store {
                 println!("Found entry: {} - {}", msix_info.offset, entry.header_offset);
                 let mut msix_stream = http_source.make_slice_reader(msix_info.offset, entry.compressed_size);
-                let mut msix_reader = rc_zip::reader::ArchiveReader::new(msix_stream.len());
-                let msix_archive = get_archive(&mut msix_reader, &mut msix_stream);
-                extract_archive(msix_archive, &mut msix_stream, "C:\\Debuggers");
+
+
+                let dest_path = version_install_dir.join(&msix_info.entry_name);
+
+                // TODO: Always replace existing file
+                if !dest_path.as_path().exists() {
+                    if let Some(parent) = dest_path.parent() {
+                        std::fs::create_dir_all(parent).unwrap();
+                    }
+                    let mut dest_file = File::create(&dest_path).unwrap();
+
+                    let mut req_stream = msix_stream.get_stream().unwrap();
+
+                    println!("Copying msix locally");
+                    let start = std::time::Instant::now();
+                    std::io::copy(&mut req_stream, &mut dest_file).unwrap();
+                    let elapsed = start.elapsed();
+                    println!("Time to download: {:?}", elapsed);
+                }
+
+                let src_file = File::open(dest_path).unwrap();
+                let archive = src_file.read_zip().unwrap();
+                println!("Extracting msix");
+                let start = std::time::Instant::now();
+                extract_archive(archive, version_install_dir.as_path());
+                let elapsed = start.elapsed();
+                println!("Time to extract msix: {:?}", elapsed);
             } else {
                 println!("NYI: the embedded zip file was compressed, instead of being stored directly.");
             }
         }
     }
 
-    // Now download and extract the msix to the target directory
-    
-    //let response = reqwest::blocking::get(bundle_uri).unwrap();
-
-    //ZipArchive::new()
-    //response.
+    let elapsed = start_everything.elapsed();
+    println!("Installed successfully. Time to install: {:?}", elapsed);
 }

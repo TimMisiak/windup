@@ -10,3 +10,11 @@ rc-zip = "2.0.1"
 reqwest = { version = "0.11.18", features = ["blocking"] }
 roxmltree = "0.18.0"
 tokio = { version = "1.29.1", features = ["full"] }
+
+[dependencies.windows]
+version = "0.48.0"
+features = [
+    "Win32_System_Threading",
+    "Win32_Foundation",
+    "Win32_System_SystemInformation",
+]
