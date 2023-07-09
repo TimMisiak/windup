@@ -4,6 +4,8 @@ Windup is an installer for WinDbg that uses the appinstaller file at https://aka
 
 This is NOT a good replacement for using the appinstaller directly, but is useful on platforms where appinstaller is not available, such as Windows Server.
 
+The installer attempts to be intelligent and will download only the MSIX file that is relevant for the current architecture, instead of downloading the entire msixbundle.  
+
 **This program is not endorsed or supported by Microsoft**
 
 ## How to use
