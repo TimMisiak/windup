@@ -1,5 +1,5 @@
 use tokio::*;
-use windows::Win32::System::{Threading::{IsWow64Process2, GetCurrentProcess}, SystemInformation::{IMAGE_FILE_MACHINE, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_ARM64}};
+use windows::{Win32::{System::{Threading::{IsWow64Process2, GetCurrentProcess}, SystemInformation::{IMAGE_FILE_MACHINE, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_ARM64}}, Security::WinTrust::{WINTRUST_DATA, WINTRUST_CATALOG_INFO, WTD_UI_NONE, WTD_REVOKE_NONE, WTD_CHOICE_CATALOG, WINTRUST_FILE_INFO, WINTRUST_ACTION_GENERIC_VERIFY_V2, WTD_CHOICE_FILE, WTD_STATEACTION_VERIFY, WinVerifyTrust}, Foundation::ERROR_SUCCESS}, core::{PCWSTR, HSTRING}};
 use core::panic;
 use std::{error::Error, io::{Read, Seek}, path::Path, fs::File, ptr::copy};
 use reqwest::blocking::get;
@@ -119,6 +119,51 @@ fn extract_archive(archive: SyncArchive<'_, File>, dest_dir: &Path) {
     }
 }
 
+
+// There's a catalog file inside the msix, but maybe this is already what's used for verifying
+// the archive itself if you use WinVerifyTrust on it.
+//fn verify_files(dir: &Path) -> bool {
+//    let mut wintrust_data = WINTRUST_DATA::default();
+//    wintrust_data.cbStruct = std::mem::size_of::<WINTRUST_DATA>() as u32;
+//    wintrust_data.dwUIChoice = WTD_UI_NONE;
+//    wintrust_data.fdwRevocationChecks = WTD_REVOKE_NONE;
+//    wintrust_data.dwUnionChoice = WTD_CHOICE_CATALOG;
+//
+//    let mut catalog_info = WINTRUST_CATALOG_INFO::default();
+//    catalog_info.cbStruct = std::mem::size_of::<WINTRUST_CATALOG_INFO>() as u32;
+//    let cat_path = dir.join("AppxMetadata/CodeIntegrity.cat");
+//}
+
+fn verify_archive(file: &Path) -> bool {
+    let mut file_data = WINTRUST_FILE_INFO::default();
+    file_data.cbStruct = std::mem::size_of::<WINTRUST_FILE_INFO>() as u32;
+    //let file_os_path = file.as_os_str().to_os_string();
+    let file_string = HSTRING::from(file);
+    file_data.pcwszFilePath = PCWSTR::from_raw(file_string.as_ptr());
+    let mut policy_guid = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+    
+    let mut wintrust_data = WINTRUST_DATA::default();
+    wintrust_data.cbStruct = std::mem::size_of::<WINTRUST_DATA>() as u32;
+    wintrust_data.dwUIChoice = WTD_UI_NONE;
+    wintrust_data.fdwRevocationChecks = WTD_REVOKE_NONE;
+    wintrust_data.dwUnionChoice = WTD_CHOICE_FILE;
+    wintrust_data.dwStateAction = WTD_STATEACTION_VERIFY;
+    wintrust_data.Anonymous.pFile = &mut file_data;
+
+    let status = unsafe { WinVerifyTrust(None, &mut policy_guid, (&mut wintrust_data) as *mut _ as *mut core::ffi::c_void) };
+
+    drop(file_data);
+    drop(file_string);
+
+    if status == ERROR_SUCCESS.0 as i32 {
+        println!("Signature verified!");
+        true
+    } else {
+        println!("Signature failed verification, error: {:x}", status);
+        false
+    }
+}
+
 fn main() {
     let (bundle_uri, version) = get_bundle_uri().unwrap();
     let install_dir = "C:\\Debuggers";    
@@ -189,6 +234,14 @@ fn main() {
                     let elapsed = start.elapsed();
                     println!("Time to download: {:?}", elapsed);
                 }
+
+                println!("Verifying certificates");
+                let start = std::time::Instant::now();
+                if !verify_archive(dest_path.as_path()) {
+                    return;
+                }
+                let elapsed = start.elapsed();
+                println!("Time to verify: {:?}", elapsed);
 
                 let src_file = File::open(dest_path).unwrap();
                 let archive = src_file.read_zip().unwrap();
