@@ -9,7 +9,7 @@
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/target/debug/windup.exe",
-            "args": [],
+            "args": ["cmd.exe"],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],
@@ -30,7 +30,7 @@
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": ["cmd.exe"],
             "cwd": "${workspaceFolder}"
         }
 
