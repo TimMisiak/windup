@@ -117,14 +117,14 @@ fn main() {
         
         if let Some(new_version) = new_version {
             let version_install_dir = install_dir.join(&new_version);
+            unsafe { FreeConsole() };
             // Now that we're installed, run DbgX.Shell.exe with the given parameters
             run_dbgx_shell(&version_install_dir);    
         } else {
             println!("Install failed. Press enter to close this window.");
             let mut stdin = std::io::stdin();
             let _ = stdin.read(&mut [0u8]).unwrap();
+            unsafe { FreeConsole() };
         }
-
-        unsafe { FreeConsole() };
     }
 }
