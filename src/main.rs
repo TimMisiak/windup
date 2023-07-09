@@ -1,17 +1,8 @@
-use tokio::*;
-use windows::{Win32::{System::{Threading::{IsWow64Process2, GetCurrentProcess, PROCESS_CREATION_FLAGS, CreateProcessW, STARTUPINFOEXW, PROCESS_INFORMATION, WaitForSingleObject, INFINITE}, SystemInformation::{IMAGE_FILE_MACHINE, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_ARM64}, Environment::GetCommandLineW}, Security::WinTrust::{WINTRUST_DATA, WINTRUST_CATALOG_INFO, WTD_UI_NONE, WTD_REVOKE_NONE, WTD_CHOICE_CATALOG, WINTRUST_FILE_INFO, WINTRUST_ACTION_GENERIC_VERIFY_V2, WTD_CHOICE_FILE, WTD_STATEACTION_VERIFY, WinVerifyTrust}, Foundation::ERROR_SUCCESS}, core::{PCWSTR, HSTRING, PWSTR}, w};
-use core::panic;
-use std::{error::Error, io::{Read, Seek, Write}, path::Path, fs::File, ffi::{OsStr, OsString}, os::windows::prelude::OsStringExt};
-use std::os::windows::ffi::OsStrExt;
-use reqwest::blocking::get;
-use roxmltree::Document;
-use rc_zip::{*, reader::{ArchiveReaderResult, ArchiveReader, sync::{EntryReader, SyncArchive}}};
-use rc_zip::prelude::*;
+use windows::{Win32::System::{Threading::{PROCESS_CREATION_FLAGS, CreateProcessW, STARTUPINFOEXW, PROCESS_INFORMATION, WaitForSingleObject, INFINITE}, Environment::GetCommandLineW}, core::PWSTR};
+use std::{path::Path, ffi::OsString, os::windows::{ffi::OsStrExt, prelude::OsStringExt}};
 
 mod range_reader;
 mod install;
-
-use range_reader::{HttpRangeReader, HttpRangeCursor};
 use install::*;
 
 unsafe fn wcslen(ptr: *const u16) -> usize {
@@ -112,10 +103,10 @@ fn main() {
             run_dbgx_shell(&version_path);
         });
 
+        // Check for new versions in the background
         check_for_new_version(&install_dir, current_version);
 
         thread.join().unwrap();
-        return;
     } else {
         let new_version = check_for_new_version(&install_dir, current_version);
 
