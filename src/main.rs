@@ -108,16 +108,21 @@ fn main() {
 
     if let Some(version) = &current_version {
         let version_path = install_dir.join(version);
-        run_dbgx_shell(&version_path);
-        // TODO: Install new version in the background?
+        let thread = std::thread::spawn(move || {
+            run_dbgx_shell(&version_path);
+        });
+
+        check_for_new_version(&install_dir, current_version);
+
+        thread.join().unwrap();
         return;
-    }
+    } else {
+        let new_version = check_for_new_version(&install_dir, current_version);
 
-    let new_version = check_for_new_version(&install_dir, current_version);
-
-    if let Some(new_version) = new_version {
-        let version_install_dir = install_dir.join(&new_version);
-        // Now that we're installed, run DbgX.Shell.exe with the given parameters
-        run_dbgx_shell(&version_install_dir);    
+        if let Some(new_version) = new_version {
+            let version_install_dir = install_dir.join(&new_version);
+            // Now that we're installed, run DbgX.Shell.exe with the given parameters
+            run_dbgx_shell(&version_install_dir);    
+        }
     }
 }
