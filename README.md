@@ -20,6 +20,8 @@ The windup process will stay active for as long as the child DbgX.Shell.exe proc
 
 File associations are not configured for *.dmp, *.run, etc.
 
+There are no protections from multiple instances of windup attempting to update at the same time. It's entirely possible things will break if several windup instances try to update at the same time. That should be fixed in the next version.
+
 ## Contribution
 
 Contributions are welcome. Feel free to file issues or open pull requests.
